@@ -1,10 +1,10 @@
 # Flightlab
 
-A personal technical product-management practice simulator built from the ten available curriculum screenshots. Investigate incomplete evidence, write an artifact, commit a decision, respond to a consequence and review your reasoning.
+A personal technical product-management practice simulator built from the ten available curriculum screenshots, deployable on Render’s free web tier. Investigate incomplete evidence, write an artifact, commit a decision, respond to a consequence and review your reasoning.
 
 ## Run locally
 
-Requires Node.js 24. No dependency installation or API key is required.
+Requires Node.js 24. No dependency installation or external API key is required. Local development generates a private backup key in the ignored data directory.
 
 ```sh
 npm start
@@ -17,13 +17,13 @@ npm run build
 npm test
 ```
 
-The build command verifies JavaScript syntax. Tests exercise all twenty authored constraint profiles, five-stage capstones, scoring, answer-key secrecy, evidence budgets, duplicate submissions, API/session isolation, restart persistence and sandbox idempotency.
+The build command verifies JavaScript syntax. Tests exercise all twenty authored constraint profiles, five-stage capstones, scoring, answer-key secrecy, evidence budgets, duplicate submissions, API/session isolation, restart persistence, encrypted backup integrity, complete server-disk-loss recovery and sandbox idempotency.
 
 ## Practice flow
 
 1. Choose a track. Each attempt receives a reproducible seed and a hidden constraint profile.
 2. Spend five investigation credits on analytics, interviews, service traces or the planning brief. Evidence is tied to this attempt. In the capstone the evidence budget spans all five stages.
-3. Write the structured working artifact. Cite collected evidence IDs in the rationale. Drafts save after a short pause; “Save & leave” explicitly waits for the save.
+3. Write the structured working artifact. Cite collected evidence IDs in the rationale. Drafts save after a short pause and receive encrypted backups in this browser; “Save & leave” explicitly waits for the save.
 4. Commit a decision and confidence level. The server snapshots the artifact and locks the decision.
 5. Respond to the resulting update. Single-track attempts reveal their debrief now; capstones continue through five stages before revealing grades.
 6. Export Markdown/JSON, inspect the rubric and replay with a new or fixed seed.
@@ -53,20 +53,21 @@ Twenty authored constraint profiles, with seed-based selection and decision-depe
 
 ## Deploy on Render
 
-The repository contains `render.yaml`, based on the [Render Blueprint reference](https://render.com/docs/blueprint-spec). It declares a Node 24 service and a persistent disk for SQLite. A paid disk-compatible compute plan is required; confirm the price in Render before creating the service.
+The repository contains `render.yaml`, based on the [Render Blueprint reference](https://render.com/docs/blueprint-spec). It declares a **free Node 24 web service, without a paid disk or database**.
 
-1. Push this directory as the root of a GitHub repository.
-2. In Render, choose **New → Blueprint**, connect that repository, and select `render.yaml`.
-3. Set `APP_ORIGIN` to the exact HTTPS service origin, without a trailing slash. Use the generated service URL shown by Render; update it if you later change domains. No other secrets are required.
-4. Review the compute and disk charges, then create the service.
-5. Verify `/health` returns `{"status":"ok"}`. Open the app, save an attempt, restart the service and verify it resumes.
+1. In Render, choose **New → Blueprint**, connect this repository, and select `render.yaml`.
+2. Confirm the estimate is **$0/month**, then deploy.
+3. Render generates `BACKUP_SECRET` automatically. Keep this value unchanged across redeploys; changing it makes existing browser backups unreadable. Never commit or share it.
+4. Verify `/health` returns `{"status":"ok"}`. Open the app and save an attempt. Browser backups restore automatically when the temporary server database is lost.
 
-`NODE_ENV=production` enables Secure cookies and HSTS. `DATA_DIR=/var/data/flightlab` stores SQLite on the persistent disk. Do not deploy to ephemeral storage if you want progress to survive redeploys. Run one instance; SQLite is not shared across multiple Render instances.
+`NODE_ENV=production` enables Secure cookies and HSTS. `DATA_DIR=/tmp/flightlab` is temporary SQLite storage. Each state response includes an AES-256-GCM encrypted checkpoint saved in browser IndexedDB. After server data loss, the browser returns the checkpoint and the server validates, decrypts and restores it. Hidden facts, answer keys and the session token remain encrypted. Existing server progress cannot be rewound with an older checkpoint. In an empty database, an older valid backup can be replayed; this personal practice tool is not a tamper-proof exam service.
+
+Render free services sleep after inactivity and can take time to wake. Free compute and bandwidth limits are shared with other services in your workspace. See [Render free-tier limits](https://render.com/docs/free). Browser backups are device/origin-specific: clearing site data or changing browsers removes access unless you retained a backup. Localhost backups do not automatically transfer to the deployed domain. There is no paid storage resource in this Blueprint.
 
 Source repository: [karanparmani/FlightLab](https://github.com/karanparmani/FlightLab). The Render configuration is ready; a live deployment has not yet been created.
 
 ## Configuration
 
-Copy `.env.example` to `.env` if needed. Keep `.env` out of version control. `PORT` defaults to 3000, `DATA_DIR` to `./data`, and `APP_ORIGIN` to the current origin in development. No external fonts, analytics or third-party runtime requests are used.
+Copy `.env.example` to `.env` if needed. Keep `.env` out of version control. `PORT` defaults to 3000, `DATA_DIR` to `./data`, and `APP_ORIGIN` to the current origin in development. BACKUP_SECRET is required in production; Render generates it through the Blueprint. No external fonts, analytics or third-party runtime requests are used.
 
-Progress belongs to an anonymous, HttpOnly browser cookie and is stored server-side. There is no cross-device login or recovery. Clearing cookies loses access to the associated profile. Export important work. This MVP has no sensitive-data use case; do not enter real customer records. See [ARCHITECTURE.md](ARCHITECTURE.md) for the curriculum mapping, implementation plan, security controls and operational limits.
+Progress is linked to an anonymous HttpOnly cookie, cached server-side, and backed up in encrypted form in browser IndexedDB. There is no cross-device login. Clearing all site data deletes backups. Export important work. This MVP has no sensitive-data use case; do not enter real customer records. See [ARCHITECTURE.md](ARCHITECTURE.md) for the curriculum mapping, implementation plan, security controls and operational limits.
