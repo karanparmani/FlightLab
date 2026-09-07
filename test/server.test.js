@@ -7,7 +7,7 @@ import {once} from 'node:events';
 import {createApp} from '../server.js';
 
 test('API isolation, hidden state, validation, sandbox and durable restart',async()=>{
- const dir=mkdtempSync(join(tmpdir(),'flightlab-test-'));let server=createApp({dataDir:dir});
+ const dir=mkdtempSync(join(tmpdir(),'flightlab-test-'));let server=createApp({dataDir:dir,production:false,origin:''});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));let base=`http://127.0.0.1:${server.address().port}`;
  const a={cookie:''},b={cookie:''};
  async function req(path,{method='GET',body,client=a,origin=base}={}){const res=await fetch(base+path,{method,headers:{...(client.cookie?{Cookie:client.cookie}:{}),...(body?{'Content-Type':'application/json',Origin:origin}: {})},body:body?JSON.stringify(body):undefined});if(res.headers.get('set-cookie'))client.cookie=res.headers.get('set-cookie').split(';')[0];const text=await res.text();return{status:res.status,headers:res.headers,data:res.headers.get('content-type')?.includes('application/json')?JSON.parse(text):text};}
@@ -27,7 +27,7 @@ test('API isolation, hidden state, validation, sandbox and durable restart',asyn
   assert.equal((await post({timeout:true})).data.status,504);
   const retry=await post({});assert.equal(retry.data.status,200);assert.equal(retry.data.body.replayed,true);
   assert.equal((await post({amount:1300})).data.status,409);assert.equal((await post({amount:-1})).data.status,422);
-  await new Promise(r=>server.close(r));server=createApp({dataDir:dir});await new Promise(r=>server.listen(0,'127.0.0.1',r));base=`http://127.0.0.1:${server.address().port}`;
+  await new Promise(r=>server.close(r));server=createApp({dataDir:dir,production:false,origin:''});await new Promise(r=>server.listen(0,'127.0.0.1',r));base=`http://127.0.0.1:${server.address().port}`;
   assert.equal((await req(`/api/runs/${id}`)).data.rationale,'Saved reasoning that survives a restart of the application server.');
   const concurrent=await Promise.all([req(`/api/runs/${id}/evidence`,{method:'POST',body:{source:'trace'}}),req(`/api/runs/${id}/evidence`,{method:'POST',body:{source:'analytics'}})]);assert.ok(concurrent.every(x=>x.status===200));assert.equal((await req(`/api/runs/${id}`)).data.budget,1);
   const decision={choice:0,rationale:'E1 and E2 support a durable idempotency key. I would verify duplicates and roll back if the outcome worsens.'};

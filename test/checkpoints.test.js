@@ -24,7 +24,7 @@ test('full free-tier disk loss restores progress and identity; stale backups can
  const first=mkdtempSync(join(tmpdir(),'flightlab-first-')),fresh=mkdtempSync(join(tmpdir(),'flightlab-fresh-'));
  const backupSecret='persistent-environment-key-'.repeat(3);
  let server,base,cookie='';
- const open=async dir=>{server=createApp({dataDir:dir,backupSecret});await new Promise(r=>server.listen(0,'127.0.0.1',r));base=`http://127.0.0.1:${server.address().port}`;};
+ const open=async dir=>{server=createApp({dataDir:dir,backupSecret,production:false,origin:''});await new Promise(r=>server.listen(0,'127.0.0.1',r));base=`http://127.0.0.1:${server.address().port}`;};
  const call=async(path,method='GET',body)=>{
   const response=await fetch(base+'/api'+path,{method,headers:{Cookie:cookie,Origin:base,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
   if(response.headers.get('set-cookie'))cookie=response.headers.get('set-cookie').split(';')[0];
@@ -50,4 +50,19 @@ test('full free-tier disk loss restores progress and identity; stale backups can
   assert.equal((await call('/restore','POST',{checkpoint:'forged'})).status,400);
   assert.equal((await call(`/runs/${id}`)).data.id,id);
  }finally{if(server?.listening)await new Promise(r=>server.close(r));for(const dir of [first,fresh])rmSync(dir,{recursive:true,force:true});}
+});
+
+test('production mode requires HTTPS origin and sets Secure cookies',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'flightlab-production-'));
+ const server=createApp({dataDir:dir,production:true,origin:'https://flightlab.example',backupSecret:'production-test-only-secret-'.repeat(3)});
+ try{
+  await new Promise(r=>server.listen(0,'127.0.0.1',r));
+  const base=`http://127.0.0.1:${server.address().port}`;
+  const request=origin=>fetch(base+'/api/runs',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({moduleId:'apis'})});
+  const rejected=await request('http://flightlab.example');assert.equal(rejected.status,403);await rejected.text();
+  const accepted=await request('https://flightlab.example');assert.equal(accepted.status,201);
+  assert.match(accepted.headers.get('set-cookie'),/; Secure/);
+  assert.match(accepted.headers.get('strict-transport-security'),/max-age/);
+  assert.ok((await accepted.json()).checkpoint);
+ }finally{await new Promise(r=>server.close(r));rmSync(dir,{recursive:true,force:true});}
 });
