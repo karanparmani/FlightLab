@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: pm-flightlab
+    runtime: node
+    plan: 0.5c-512mb
+    buildCommand: npm run build && npm test
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data/flightlab
+      - key: APP_ORIGIN
+        sync: false
+    disk:
+      name: flightlab-data
+      mountPath: /var/data
+      sizeGB: 1
